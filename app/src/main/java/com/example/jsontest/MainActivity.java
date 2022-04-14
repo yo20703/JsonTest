@@ -7,8 +7,11 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import android.Manifest;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
@@ -37,21 +40,22 @@ public class MainActivity extends AppCompatActivity {
     ArrayList<AddressData> addressDatas = new ArrayList<>();
     ArrayList<String> datas = new ArrayList<>();
 
-    String[] permissions = new String[] {
+    String[] permissions = new String[]{
             Manifest.permission.INTERNET,
             Manifest.permission.READ_EXTERNAL_STORAGE,
             Manifest.permission.WRITE_EXTERNAL_STORAGE
     };
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
         //確認權限，讀寫檔案要權限
-        if(checkPermissionAllGranted(permissions)){
+        if (checkPermissionAllGranted(permissions)) {
             showDialog();
         } else {
-            ActivityCompat.requestPermissions(this, permissions,100);
+            ActivityCompat.requestPermissions(this, permissions, 100);
         }
 
 
@@ -84,13 +88,13 @@ public class MainActivity extends AppCompatActivity {
                 showDialog();
 
             } else {
-                Toast.makeText(this, "權限被拒絕",Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "權限被拒絕", Toast.LENGTH_SHORT).show();
                 finish();
             }
         }
     }
 
-    private void showDialog(){
+    private void showDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
         builder.setMessage("網路還讀檔?");
         builder.setPositiveButton("網路", new DialogInterface.OnClickListener() {
@@ -108,27 +112,38 @@ public class MainActivity extends AppCompatActivity {
         dialog.show();
     }
 
-    private void initData(int mode){
+    private void initData(int mode) {
         ListView lv1 = findViewById(R.id.lv_1);
 
         new Thread(new Runnable() {
             @Override
             public void run() {
                 String jsonString = "";
-                switch (mode){
+                switch (mode) {
                     case 0:
                         //getApi拿json
-                        try {
-                            jsonString = JsonReader.getJSON("http://mysql2.im.ukn.edu.tw/~ttchen/api.php",9000);
-                            Log.i(TAG, "JsonReader.getJSON: " + jsonString);
-                        } catch (IOException e) {
-                            e.printStackTrace();
+                        if (isNetworkConnected(MainActivity.this)){
+                            try {
+                                jsonString = JsonReader.getJSON("http://mysql2.im.ukn.edu.tw/~ttchen/api.php", 9000);
+                                Log.i(TAG, "JsonReader.getJSON: " + jsonString);
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                        } else {
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    Toast.makeText(MainActivity.this, "當前無可用網路", Toast.LENGTH_SHORT).show();
+                                }
+                            });
+                            return;
                         }
+
                         break;
                     case 1:
                         //懶的手動放檔案，先寫再讀
                         File jsonFile = new File(Environment.getExternalStorageDirectory().getAbsolutePath() + "/Address.json");
-                        writeInfo(jsonFile,"[{\"city\":\"彭湖縣\",\"cn\":\"彭湖重光漁港\",\"addr\":\"彭湖縣吉林路23號\",\"tel\":\"0933123456\"},{\"city\":\"彭湖縣\",\"cn\":\"彭湖吉貝漁港\",\"addr\":\"彭湖縣吉貝路66號\",\"tel\":\"0933564532\"},{\"city\":\"新北市\",\"cn\":\"淡水客船碼頭\",\"addr\":\"新北市淡水路1234號\",\"tel\":\"09965646\"},{\"city\":\"屏東縣\",\"cn\":\"小琉球大福漁港\",\"addr\":\"屏東縣大福路37號\",\"tel\":\"0968123456\"}]");
+                        writeInfo(jsonFile, "[{\"city\":\"彭湖縣\",\"cn\":\"彭湖重光漁港\",\"addr\":\"彭湖縣吉林路23號\",\"tel\":\"0933123456\"},{\"city\":\"彭湖縣\",\"cn\":\"彭湖吉貝漁港\",\"addr\":\"彭湖縣吉貝路66號\",\"tel\":\"0933564532\"},{\"city\":\"新北市\",\"cn\":\"淡水客船碼頭\",\"addr\":\"新北市淡水路1234號\",\"tel\":\"09965646\"},{\"city\":\"屏東縣\",\"cn\":\"小琉球大福漁港\",\"addr\":\"屏東縣大福路37號\",\"tel\":\"0968123456\"}]");
                         jsonString = readInfo(jsonFile);
                         break;
                 }
@@ -136,7 +151,7 @@ public class MainActivity extends AppCompatActivity {
                 JSONArray jsonArray = null;
                 try {
                     jsonArray = new JSONArray(jsonString);
-                    for (int i = 0;i < jsonArray.length();i++){
+                    for (int i = 0; i < jsonArray.length(); i++) {
                         JSONObject jsonObject = new JSONObject(jsonArray.get(i).toString());
                         AddressData addressData = new AddressData(
                                 jsonObject.optString("city"),
@@ -164,7 +179,7 @@ public class MainActivity extends AppCompatActivity {
                 lv1.setOnItemClickListener(new AdapterView.OnItemClickListener() {
                     @Override
                     public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                        Toast.makeText(MainActivity.this,"city: "+ addressDatas.get(position).city + "\n地址: " + addressDatas.get(position).addr + "\n電話: " + addressDatas.get(position).tel, Toast.LENGTH_SHORT).show();
+                        Toast.makeText(MainActivity.this, "city: " + addressDatas.get(position).city + "\n地址: " + addressDatas.get(position).addr + "\n電話: " + addressDatas.get(position).tel, Toast.LENGTH_SHORT).show();
                     }
                 });
 
@@ -189,7 +204,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public String readInfo(File file){
+    public String readInfo(File file) {
         BufferedReader br = null;
         String response = null;
 
@@ -198,12 +213,12 @@ public class MainActivity extends AppCompatActivity {
             br = new BufferedReader(new FileReader(file.getPath()));
             String line = "";
             while ((line = br.readLine()) != null) {
-                output.append(line +"\n");
+                output.append(line + "\n");
             }
             response = output.toString();
             br.close();
 
-        } catch(FileNotFoundException e) {
+        } catch (FileNotFoundException e) {
             Log.e(TAG, "FileNotFoundException: " + e);
 
             return null;
@@ -213,5 +228,17 @@ public class MainActivity extends AppCompatActivity {
 
         }
         return response;
+    }
+
+    public boolean isNetworkConnected(Context context) {
+        if (context != null) {
+            ConnectivityManager mConnectivityManager = (ConnectivityManager) context
+                    .getSystemService(Context.CONNECTIVITY_SERVICE);
+            NetworkInfo mNetworkInfo = mConnectivityManager.getActiveNetworkInfo();
+            if (mNetworkInfo != null) {
+                return mNetworkInfo.isAvailable();
+            }
+        }
+        return false;
     }
 }
